@@ -53,7 +53,7 @@ $result = $conn->query($sql);
                     <th>Head Teacher</th>
                     <th>Student Count</th>
                     <th>Actions</th>
-                    <th>Notes</th>
+            
                 </tr>
             </thead>
             <tbody>
