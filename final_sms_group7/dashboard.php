@@ -1,14 +1,14 @@
 <?php
-// dashboard.php - FINAL VERSION (With Home Tab)
+// dashboard.php - PHIÊN BẢN CÓ THÔNG BÁO
 session_start();
 include 'db.php';
 
-// 1. CHECK LOGIN
+// 1. KIỂM TRA ĐĂNG NHẬP
 if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
 $user_name = $_SESSION['user_name'];
 $user_role = $_SESSION['user_role'] ?? 'student';
 
-// 2. LOGIC
+// 2. XỬ LÝ LOGIC: TÌM KIẾM & ĐẾM HỌC SINH
 $sql = "SELECT classes.*, COUNT(students.id) AS student_count 
         FROM classes 
         LEFT JOIN students ON classes.id = students.class_id ";
@@ -22,10 +22,10 @@ if (isset($_GET['search']) && !empty($_GET['search'])) {
 $sql .= " GROUP BY classes.id ORDER BY classes.class_name";
 $result = $conn->query($sql);
 
-// Helper function to check active page (for Sidebar)
-function isActive($page) {
-    return basename($_SERVER['PHP_SELF']) == $page ? 'active' : '';
-}
+// 3. LẤY THÔNG BÁO (MỚI THÊM)
+// Lấy 3 thông báo mới nhất
+$sql_news = "SELECT * FROM announcements ORDER BY start_time DESC LIMIT 3";
+$result_news = $conn->query($sql_news);
 ?>
 
 <!DOCTYPE html>
@@ -35,21 +35,25 @@ function isActive($page) {
     <title>Dashboard - Class Management</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* --- 1. GLOBAL STYLES --- */
+        /* --- 1. CẤU HÌNH CHUNG --- */
         body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f9; }
         .app-container { display: flex; height: 100vh; overflow: hidden; }
 
-        /* --- 2. SIDEBAR (FIXED) --- */
-        .sidebar { width: 260px; background: #0f172a; color: #94a3b8; display: flex; flex-direction: column; transition: width 0.3s ease; flex-shrink: 0; white-space: nowrap; overflow: hidden;}
+        /* --- 2. SIDEBAR STYLE --- */
+        .sidebar { 
+            width: 260px; background: #0f172a; color: #94a3b8; 
+            display: flex; flex-direction: column; transition: width 0.3s ease; flex-shrink: 0; white-space: nowrap; 
+        }
         .sidebar.collapsed { width: 70px; }
         .sidebar.collapsed .logo-group, .sidebar.collapsed .sidebar-menu span, .sidebar.collapsed .user-info, .sidebar.collapsed .logout-text { display: none; }
-        .sidebar.collapsed .sidebar-header, .sidebar.collapsed .sidebar-menu a, .sidebar.collapsed .logout-btn { justify-content: center; padding-left: 0; padding-right: 0; }
+        .sidebar.collapsed .sidebar-header { justify-content: center; }
+        .sidebar.collapsed .sidebar-menu a { justify-content: center; padding: 15px 0; }
         .sidebar.collapsed .sidebar-menu i { margin-right: 0; font-size: 1.4rem; }
         .sidebar.collapsed .logout-btn { justify-content: center; }
 
         .sidebar-header { padding: 20px; display: flex; align-items: center; justify-content: space-between; color: #fff; border-bottom: 1px solid #1e293b; height: 60px; box-sizing: border-box; }
-        .logo-group { display: flex; align-items: center; gap: 10px; }
-        .logo-text { margin: 0; font-size: 1.2rem; font-weight: bold; }
+        .logo-group { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+        .logo-group h3 { margin: 0; font-size: 1.2rem; font-weight: bold; }
         #toggle-btn { cursor: pointer; color: #fff; font-size: 1.2rem; }
 
         .sidebar-menu { list-style: none; padding: 10px 0; margin: 0; flex: 1; }
@@ -65,7 +69,8 @@ function isActive($page) {
         /* --- 3. MAIN CONTENT --- */
         .main-content { flex: 1; overflow-y: auto; padding: 30px; display: flex; flex-direction: column; }
         
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        /* Header Bar */
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .page-title { margin: 0; color: #1e293b; font-size: 1.8rem; }
         
         .action-bar { display: flex; gap: 15px; }
@@ -75,33 +80,39 @@ function isActive($page) {
         .btn-add { padding: 10px 20px; background: #10b981; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; display: flex; align-items: center; gap: 5px; }
         .btn-add:hover { background: #059669; }
 
-        /* CARD STYLES */
-        .class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
+        /* --- NEW: STYLE CHO PHẦN THÔNG BÁO --- */
+        .news-section { margin-bottom: 30px; background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+        .news-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        .news-header h3 { margin: 0; color: #334155; font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
         
+        .news-card { background: #f8fafc; border-left: 4px solid #3b82f6; padding: 15px; margin-bottom: 10px; border-radius: 4px; transition: 0.2s; }
+        .news-card:hover { background: #f1f5f9; }
+        .news-title { font-weight: bold; color: #1e293b; font-size: 1rem; display: flex; justify-content: space-between; }
+        .news-meta { font-size: 0.85rem; color: #64748b; margin-top: 5px; display: flex; gap: 15px; }
+        .news-content { margin-top: 8px; font-size: 0.95rem; color: #475569; }
+        .btn-add-news { font-size: 0.85rem; background: #6366f1; color: white; padding: 5px 12px; border-radius: 4px; text-decoration: none; }
+        .btn-add-news:hover { background: #4f46e5; }
+
+        /* Card Grid System */
+        .class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 25px; }
         .class-card { background: #fff; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); overflow: hidden; transition: 0.2s; border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
         .class-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px rgba(0,0,0,0.1); border-color: #3b82f6; }
-        
-        /* THIS LINK WRAPS THE HEADER AND BODY */
-        .card-main-link { text-decoration: none; color: inherit; display: flex; flex-direction: column; flex: 1; cursor: pointer; }
-        
         .card-header { background: #3b82f6; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; }
         .card-header h3 { margin: 0; font-size: 1.3rem; }
         .grade-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; }
-        
         .card-body { padding: 20px; flex: 1; }
         .teacher-info { display: flex; align-items: center; gap: 15px; margin-bottom: 15px; }
         .teacher-img { width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #e2e8f0; }
         .info-row { font-size: 0.9rem; color: #64748b; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
         .student-count { background: #f1f5f9; color: #334155; padding: 5px 10px; border-radius: 5px; font-weight: bold; font-size: 0.85rem; display: inline-block; margin-top: 10px;}
-        
-        /* Footer stays outside the main link so buttons work independently */
         .card-footer { padding: 15px 20px; border-top: 1px solid #f1f5f9; background: #f8fafc; display: flex; gap: 10px; }
-        
         .btn { flex: 1; padding: 8px; text-align: center; border-radius: 5px; text-decoration: none; font-size: 0.85rem; font-weight: 500; transition: 0.2s; }
-        /* "View" button is removed/hidden if clicking card works, or kept as visual cue */
-        .btn-view { background: #e0f2fe; color: #0284c7; flex: 2; } .btn-view:hover { background: #bae6fd; }
-        .btn-edit { background: #fef3c7; color: #d97706; } .btn-edit:hover { background: #fde68a; }
-        .btn-delete { background: #fee2e2; color: #dc2626; } .btn-delete:hover { background: #fecaca; }
+        .btn-view { background: #e0f2fe; color: #0284c7; flex: 2; }
+        .btn-view:hover { background: #bae6fd; }
+        .btn-edit { background: #fef3c7; color: #d97706; }
+        .btn-edit:hover { background: #fde68a; }
+        .btn-delete { background: #fee2e2; color: #dc2626; }
+        .btn-delete:hover { background: #fecaca; }
 
     </style>
 </head>
@@ -113,32 +124,24 @@ function isActive($page) {
         <div class="sidebar-header">
             <div class="logo-group">
                 <i class="fas fa-graduation-cap" style="font-size: 1.5rem;"></i> 
-                <h3 class="logo-text">SMS Portal</h3>
+                <h3>SMS Portal</h3>
             </div>
             <i class="fas fa-bars" id="toggle-btn" onclick="toggleSidebar()"></i>
         </div>
         
         <ul class="sidebar-menu">
             <li>
-                <a href="home.php" class="<?php echo isActive('home.php'); ?>">
-                    <i class="fas fa-home"></i> <span>Home</span>
-                </a>
-            </li>
-
-            <li>
-                <a href="dashboard.php" class="<?php echo isActive('dashboard.php'); ?>">
+                <a href="dashboard.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>">
                     <i class="fas fa-desktop"></i> <span>Class Management</span>
                 </a>
             </li>
-
             <li>
-                <a href="search_student.php" class="<?php echo isActive('search_student.php'); ?>">
+                <a href="search_student.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'search_student.php' ? 'active' : ''; ?>">
                     <i class="fas fa-search"></i> <span>Search Students</span>
                 </a>
             </li>
-
             <li>
-                <a href="class_ranking.php" class="<?php echo isActive('class_ranking.php'); ?>">
+                <a href="class_ranking.php" class="<?php echo basename($_SERVER['PHP_SELF']) == 'class_ranking.php' ? 'active' : ''; ?>">
                     <i class="fas fa-trophy"></i> <span>Class Ranking</span>
                 </a>
             </li>
@@ -153,19 +156,51 @@ function isActive($page) {
     </aside>
 
     <main class="main-content">
+        
         <div class="page-header">
             <h2 class="page-title"><i class="fas fa-chalkboard"></i> Class Overview</h2>
+            
             <div class="action-bar">
                 <form action="" method="GET" class="search-form">
-                    <input type="text" name="search" class="search-input" placeholder="Search class..." value="<?php echo htmlspecialchars($search_keyword); ?>">
+                    <input type="text" name="search" class="search-input" placeholder="Search class name..." value="<?php echo htmlspecialchars($search_keyword); ?>">
                     <button type="submit" class="btn-search"><i class="fas fa-search"></i></button>
                 </form>
+
                 <?php if ($user_role == 'admin'): ?>
                     <a href="class_create.php" class="btn-add"><i class="fas fa-plus"></i> Add Class</a>
                 <?php endif; ?>
             </div>
         </div>
 
+        <div class="news-section">
+            <div class="news-header">
+                <h3><i class="fas fa-bullhorn" style="color: #e11d48;"></i> Latest Announcements</h3>
+                <?php if ($user_role == 'admin'): ?>
+                    <a href="add_announcement.php" class="btn-add-news"><i class="fas fa-plus"></i> Post News</a>
+                <?php endif; ?>
+            </div>
+
+            <?php if ($result_news && $result_news->num_rows > 0): ?>
+                <?php while ($news = $result_news->fetch_assoc()): ?>
+                    <div class="news-card">
+                        <div class="news-title">
+                            <?php echo htmlspecialchars($news['title']); ?>
+                            <small class="text-muted" style="font-weight:normal; font-size:0.8rem;">
+                                <?php echo date("d/m/Y H:i", strtotime($news['start_time'])); ?>
+                            </small>
+                        </div>
+                        <div class="news-content">
+                            <?php echo htmlspecialchars($news['content']); ?>
+                        </div>
+                        <div class="news-meta">
+                            <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($news['location']); ?></span>
+                        </div>
+                    </div>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <p style="color:#64748b; text-align:center;">No active announcements.</p>
+            <?php endif; ?>
+        </div>
         <div class="class-grid">
             <?php 
             if ($result && $result->num_rows > 0) {
@@ -173,32 +208,30 @@ function isActive($page) {
                     $t_img = !empty($row['teacher_photo']) ? $row['teacher_photo'] : 'https://cdn-icons-png.flaticon.com/512/3135/3135715.png';
             ?>
                 <div class="class-card">
+                    <div class="card-header">
+                        <h3><?php echo htmlspecialchars($row['class_name']); ?></h3>
+                        <span class="grade-badge">Grade <?php echo htmlspecialchars($row['grade_block']); ?></span>
+                    </div>
                     
-                    <a href="student_list.php?class_id=<?php echo $row['id']; ?>" class="card-main-link" title="Click to view students">
-                        <div class="card-header">
-                            <h3><?php echo htmlspecialchars($row['class_name']); ?></h3>
-                            <span class="grade-badge">Grade <?php echo htmlspecialchars($row['grade_block']); ?></span>
+                    <div class="card-body">
+                        <div class="teacher-info">
+                            <img src="<?php echo $t_img; ?>" class="teacher-img">
+                            <div style="font-weight:bold; color:#334155; font-size:1.1rem;">
+                                <?php echo htmlspecialchars($row['teacher_name']); ?>
+                            </div>
                         </div>
                         
-                        <div class="card-body">
-                            <div class="teacher-info">
-                                <img src="<?php echo $t_img; ?>" class="teacher-img">
-                                <div style="font-weight:bold; color:#334155; font-size:1.1rem;">
-                                    <?php echo htmlspecialchars($row['teacher_name']); ?>
-                                </div>
-                            </div>
-                            
-                            <div class="info-row"><i class="fas fa-phone-alt"></i> <?php echo $row['teacher_phone'] ?: 'N/A'; ?></div>
-                            <div class="info-row"><i class="fas fa-envelope"></i> <?php echo $row['teacher_email'] ?: 'N/A'; ?></div>
-                            
-                            <div class="student-count">
-                                <i class="fas fa-user-graduate"></i> <?php echo $row['student_count']; ?> Students
-                            </div>
+                        <div class="info-row"><i class="fas fa-phone-alt"></i> <?php echo $row['teacher_phone'] ?: 'N/A'; ?></div>
+                        <div class="info-row"><i class="fas fa-envelope"></i> <?php echo $row['teacher_email'] ?: 'N/A'; ?></div>
+                        
+                        <div class="student-count">
+                            <i class="fas fa-user-graduate"></i> <?php echo $row['student_count']; ?> Students
                         </div>
-                    </a>
+                    </div>
+
                     <div class="card-footer">
                         <a href="student_list.php?class_id=<?php echo $row['id']; ?>" class="btn btn-view">
-                            <i class="fas fa-list"></i> View
+                            <i class="fas fa-list"></i> View Students
                         </a>
 
                         <?php if ($user_role == 'admin'): ?>
